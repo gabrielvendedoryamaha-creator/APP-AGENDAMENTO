@@ -37,16 +37,18 @@ db.exec(`
 `);
 
 // Insert default admin if not exists
-const adminEmail = "gabriielsoar@gmail.com";
-const existingAdmin = db.prepare("SELECT * FROM users WHERE email = ?").get(adminEmail);
-if (!existingAdmin) {
-  db.prepare("INSERT INTO users (name, email, role, active) VALUES (?, ?, ?, ?)").run(
-    "Administrador",
-    adminEmail,
-    "admin",
-    1
-  );
-}
+const adminEmails = ["gabriielsoar@gmail.com", "gabrielsoar@gmail.com"];
+adminEmails.forEach(email => {
+  const existingAdmin = db.prepare("SELECT * FROM users WHERE LOWER(email) = ?").get(email.toLowerCase());
+  if (!existingAdmin) {
+    db.prepare("INSERT INTO users (name, email, role, active) VALUES (?, ?, ?, ?)").run(
+      "Administrador",
+      email.toLowerCase(),
+      "admin",
+      1
+    );
+  }
+});
 
 async function startServer() {
   const app = express();
@@ -66,8 +68,8 @@ async function startServer() {
 
   // API Routes
   app.post("/api/login", (req, res) => {
-    const { email } = req.body;
-    const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as any;
+    const email = req.body.email?.trim().toLowerCase();
+    const user = db.prepare("SELECT * FROM users WHERE LOWER(email) = ?").get(email) as any;
     
     if (!user) {
       return res.status(401).json({ error: "Usuário não encontrado." });
@@ -175,9 +177,18 @@ async function startServer() {
   }
 
   const PORT = 3000;
-  server.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
+  
+  return app;
 }
 
-startServer();
+const appPromise = startServer();
+
+export default async (req: any, res: any) => {
+  const app = await appPromise;
+  return app(req, res);
+};
