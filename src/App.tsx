@@ -197,15 +197,24 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
-      const data = await res.json();
-      if (res.ok) {
-        setUser(data);
-        localStorage.setItem('user', JSON.stringify(data));
+      
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        const data = await res.json();
+        if (res.ok) {
+          setUser(data);
+          localStorage.setItem('user', JSON.stringify(data));
+        } else {
+          alert(`Erro: ${data.error || 'Falha no login'}`);
+        }
       } else {
-        alert(data.error);
+        const text = await res.text();
+        console.error("Server error response:", text);
+        alert('O servidor retornou um erro inesperado. Verifique se o servidor está rodando.');
       }
     } catch (e) {
-      alert('Erro ao fazer login.');
+      console.error("Login error:", e);
+      alert('Erro de conexão com o servidor. Tente novamente em alguns segundos.');
     }
   };
 
@@ -553,6 +562,14 @@ export default function App() {
 
 function LoginScreen({ onLogin }: { onLogin: (email: string) => void }) {
   const [email, setEmail] = useState('');
+  const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+
+  useEffect(() => {
+    fetch('/api/users')
+      .then(res => setApiStatus(res.ok ? 'online' : 'offline'))
+      .catch(() => setApiStatus('offline'));
+  }, []);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-zinc-950 p-4">
       <Card className="w-full max-w-md p-8">
@@ -560,6 +577,10 @@ function LoginScreen({ onLogin }: { onLogin: (email: string) => void }) {
           <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-bold text-3xl mx-auto mb-4 shadow-lg shadow-blue-500/20">Y</div>
           <h1 className="text-2xl font-bold">Gabriel Agendamento</h1>
           <p className="text-gray-500 dark:text-zinc-400 mt-2">Acesse sua conta para gerenciar clientes</p>
+          <div className="mt-4 flex items-center justify-center gap-2 text-xs">
+            <div className={cn("w-2 h-2 rounded-full", apiStatus === 'online' ? "bg-emerald-500" : apiStatus === 'offline' ? "bg-red-500" : "bg-yellow-500 animate-pulse")} />
+            <span className="text-gray-400 capitalize">Sistema {apiStatus === 'online' ? 'Online' : apiStatus === 'offline' ? 'Offline' : 'Conectando...'}</span>
+          </div>
         </div>
         <form onSubmit={(e) => { e.preventDefault(); onLogin(email); }} className="space-y-4">
           <div>
