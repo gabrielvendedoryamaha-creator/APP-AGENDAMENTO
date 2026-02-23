@@ -1,0 +1,5 @@
+{
+  "name": "Gabriel Agendamento",
+  "description": "Sistema de gestão de clientes e agendamentos para vendedores Yamaha.",
+  "requestFramePermissions": ["notifications"]
+}
