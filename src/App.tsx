@@ -565,9 +565,23 @@ function LoginScreen({ onLogin }: { onLogin: (email: string) => void }) {
   const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
 
   useEffect(() => {
-    fetch('/api/users')
-      .then(res => setApiStatus(res.ok ? 'online' : 'offline'))
-      .catch(() => setApiStatus('offline'));
+    let interval: any;
+    const checkStatus = () => {
+      fetch('/api/health')
+        .then(res => {
+          if (res.ok) {
+            setApiStatus('online');
+            clearInterval(interval);
+          } else {
+            setApiStatus('offline');
+          }
+        })
+        .catch(() => setApiStatus('offline'));
+    };
+
+    checkStatus();
+    interval = setInterval(checkStatus, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
