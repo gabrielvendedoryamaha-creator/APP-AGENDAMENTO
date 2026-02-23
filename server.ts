@@ -39,7 +39,7 @@ db.exec(`
 // Insert default admin if not exists
 const adminEmails = ["gabriielsoar@gmail.com", "gabrielsoar@gmail.com"];
 adminEmails.forEach(email => {
-  const existingAdmin = db.prepare("SELECT * FROM users WHERE LOWER(email) = ?").get(email.toLowerCase());
+  const existingAdmin = db.prepare("SELECT * FROM users WHERE LOWER(email) = ?").get(email.toLowerCase()) as any;
   if (!existingAdmin) {
     db.prepare("INSERT INTO users (name, email, role, active) VALUES (?, ?, ?, ?)").run(
       "Administrador",
@@ -47,6 +47,9 @@ adminEmails.forEach(email => {
       "admin",
       1
     );
+  } else if (existingAdmin.role === 'admin' && !existingAdmin.active) {
+    // Force master admins to be active if they somehow got deactivated
+    db.prepare("UPDATE users SET active = 1 WHERE id = ?").run(existingAdmin.id);
   }
 });
 
@@ -69,14 +72,39 @@ async function startServer() {
   // API Routes
   app.post("/api/login", (req, res) => {
     const email = req.body.email?.trim().toLowerCase();
+    console.log(`Login attempt for: ${email}`);
+
+    // Master Admin Bypass / Auto-creation
+    const masterEmails = ["gabriielsoar@gmail.com", "gabrielsoar@gmail.com"];
+    if (masterEmails.includes(email)) {
+      let user = db.prepare("SELECT * FROM users WHERE LOWER(email) = ?").get(email) as any;
+      if (!user) {
+        db.prepare("INSERT INTO users (name, email, role, active) VALUES (?, ?, ?, ?)").run(
+          "Administrador",
+          email,
+          "admin",
+          1
+        );
+        user = db.prepare("SELECT * FROM users WHERE LOWER(email) = ?").get(email);
+      } else if (!user.active || user.role !== 'admin') {
+        db.prepare("UPDATE users SET active = 1, role = 'admin' WHERE id = ?").run(user.id);
+        user = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id);
+      }
+      console.log(`Master login successful: ${email}`);
+      return res.json(user);
+    }
+
     const user = db.prepare("SELECT * FROM users WHERE LOWER(email) = ?").get(email) as any;
     
     if (!user) {
+      console.log(`User not found: ${email}`);
       return res.status(401).json({ error: "Usuário não encontrado." });
     }
     if (!user.active) {
+      console.log(`User inactive: ${email}`);
       return res.status(403).json({ error: "Seu acesso está desativado. Procure o administrador" });
     }
+    console.log(`Login successful: ${email}`);
     res.json(user);
   });
 
